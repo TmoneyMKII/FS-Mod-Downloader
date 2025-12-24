@@ -1,0 +1,231 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using FSModDownloader.Models;
+using FSModDownloader.Services;
+using Serilog;
+
+namespace FSModDownloader.ViewModels;
+
+/// <summary>
+/// ViewModel for the main application window.
+/// </summary>
+public partial class MainWindowViewModel : ObservableObject
+{
+    private readonly IModRepository _modRepository;
+    private readonly IModManager _modManager;
+    private readonly GamePathDetector _gamePathDetector;
+    private readonly ILogger _logger = Log.ForContext<MainWindowViewModel>();
+
+    [ObservableProperty]
+    private List<Mod> availableMods = new();
+
+    [ObservableProperty]
+    private List<Mod> installedMods = new();
+
+    [ObservableProperty]
+    private List<GameInstance> gameInstances = new();
+
+    [ObservableProperty]
+    private GameInstance? selectedGameInstance;
+
+    [ObservableProperty]
+    private Mod? selectedMod;
+
+    [ObservableProperty]
+    private string searchQuery = string.Empty;
+
+    [ObservableProperty]
+    private bool isLoading = false;
+
+    [ObservableProperty]
+    private string statusMessage = "Ready";
+
+    public MainWindowViewModel()
+    {
+        _gamePathDetector = new GamePathDetector();
+        _modRepository = new ModRepository("https://api.modhub.com");
+        
+        var downloader = new ModDownloader();
+        _modManager = new ModManager(downloader);
+
+        InitializeAsync();
+    }
+
+    /// <summary>
+    /// Initializes the application on startup.
+    /// </summary>
+    private async void InitializeAsync()
+    {
+        try
+        {
+            IsLoading = true;
+            StatusMessage = "Detecting game installations...";
+
+            GameInstances = _gamePathDetector.DetectGameInstallations();
+
+            if (GameInstances.Count > 0)
+            {
+                SelectedGameInstance = GameInstances[0];
+                await RefreshInstalledModsAsync();
+            }
+
+            StatusMessage = $"Found {GameInstances.Count} game installation(s)";
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Error initializing application");
+            StatusMessage = "Error initializing application";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// Searches for mods in the repository.
+    /// </summary>
+    [RelayCommand]
+    public async Task SearchModsAsync()
+    {
+        try
+        {
+            IsLoading = true;
+            StatusMessage = $"Searching for '{SearchQuery}'...";
+
+            AvailableMods = await _modRepository.SearchModsAsync(SearchQuery);
+
+            StatusMessage = $"Found {AvailableMods.Count} mod(s)";
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Error searching mods");
+            StatusMessage = "Error searching mods";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// Refreshes the list of installed mods.
+    /// </summary>
+    [RelayCommand]
+    public async Task RefreshInstalledModsAsync()
+    {
+        try
+        {
+            if (SelectedGameInstance == null)
+                return;
+
+            IsLoading = true;
+            StatusMessage = "Scanning for installed mods...";
+
+            InstalledMods = await _modManager.GetInstalledModsAsync(SelectedGameInstance.ModsPath);
+
+            StatusMessage = $"Found {InstalledMods.Count} installed mod(s)";
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Error refreshing installed mods");
+            StatusMessage = "Error refreshing installed mods";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// Installs the selected mod.
+    /// </summary>
+    [RelayCommand]
+    public async Task InstallModAsync()
+    {
+        try
+        {
+            if (SelectedMod == null || SelectedGameInstance == null)
+            {
+                StatusMessage = "Please select a mod and game instance";
+                return;
+            }
+
+            IsLoading = true;
+            StatusMessage = $"Installing {SelectedMod.Name}...";
+
+            var latestVersion = SelectedMod.Versions.FirstOrDefault();
+            if (latestVersion == null)
+            {
+                StatusMessage = "No versions available for this mod";
+                return;
+            }
+
+            var success = await _modManager.InstallModAsync(
+                SelectedMod, 
+                latestVersion, 
+                SelectedGameInstance.ModsPath);
+
+            if (success)
+            {
+                StatusMessage = $"Successfully installed {SelectedMod.Name}";
+                await RefreshInstalledModsAsync();
+            }
+            else
+            {
+                StatusMessage = $"Failed to install {SelectedMod.Name}";
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Error installing mod");
+            StatusMessage = "Error installing mod";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// Uninstalls the selected mod.
+    /// </summary>
+    [RelayCommand]
+    public async Task UninstallModAsync()
+    {
+        try
+        {
+            if (SelectedMod == null || SelectedGameInstance == null)
+            {
+                StatusMessage = "Please select a mod and game instance";
+                return;
+            }
+
+            IsLoading = true;
+            StatusMessage = $"Uninstalling {SelectedMod.Name}...";
+
+            var success = await _modManager.UninstallModAsync(
+                SelectedMod, 
+                SelectedGameInstance.ModsPath);
+
+            if (success)
+            {
+                StatusMessage = $"Successfully uninstalled {SelectedMod.Name}";
+                await RefreshInstalledModsAsync();
+            }
+            else
+            {
+                StatusMessage = $"Failed to uninstall {SelectedMod.Name}";
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Error uninstalling mod");
+            StatusMessage = "Error uninstalling mod";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+}
