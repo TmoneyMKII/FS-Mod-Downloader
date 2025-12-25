@@ -1,6 +1,7 @@
 <Window x:Class="FSModDownloader.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:utils="clr-namespace:FSModDownloader.Utilities"
         Title="FS Mod Downloader" Height="800" Width="1280"
         Icon="pack://application:,,,/FSModDownloader;component/FSModDownloader/Assets/favicon.ico"
         Background="#1A1A1A"
@@ -8,8 +9,9 @@
         MinWidth="900" MinHeight="600">
     
     <Window.Resources>
-        <!-- Bool to Visibility Converter -->
+        <!-- Converters -->
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <utils:NullToCollapsedConverter x:Key="NullToCollapsedConverter"/>
         
         <!-- Green Accent Colors -->
         <!-- Primary: #2ECC71, Hover: #27AE60, Pressed: #1E8449 -->
@@ -539,6 +541,10 @@
                                                     <TextBlock Text="{Binding Author}" Foreground="#2ECC71" FontSize="13"/>
                                                     <TextBlock Text=" • " Foreground="#555555" FontSize="13" Margin="8,0"/>
                                                     <TextBlock Text="{Binding Version, TargetNullValue='1.0'}" Foreground="#888888" FontSize="13"/>
+                                                    <TextBlock Text=" • " Foreground="#555555" FontSize="13" Margin="8,0" 
+                                                               Visibility="{Binding Source, Converter={StaticResource NullToCollapsedConverter}, FallbackValue=Collapsed}"/>
+                                                    <TextBlock Text="{Binding Source}" Foreground="#888888" FontSize="12" FontStyle="Italic"
+                                                               Visibility="{Binding Source, Converter={StaticResource NullToCollapsedConverter}, FallbackValue=Collapsed}"/>
                                                 </StackPanel>
                                                 <TextBlock Text="{Binding Description}" Foreground="#666666" FontSize="12" 
                                                            TextTrimming="CharacterEllipsis" MaxWidth="500" Margin="0,6,0,0"/>

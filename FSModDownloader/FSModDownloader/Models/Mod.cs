@@ -21,4 +21,9 @@ public class Mod
     public int DownloadCount { get; set; }
     public bool IsInstalled { get; set; }
     public string? InstalledVersion { get; set; }
+    
+    /// <summary>
+    /// The source website this mod was scraped from (e.g., "mod-network", "fs22", "fs25mods").
+    /// </summary>
+    public string? Source { get; set; }
 }

@@ -138,7 +138,8 @@ public partial class MainWindowViewModel : ObservableObject
     {
         try
         {
-            AvailableMods = await _modRepository.SearchModsAsync(string.Empty, null, 1, 50);
+            // Request up to 100 mods from all sources
+            AvailableMods = await _modRepository.SearchModsAsync(string.Empty, null, 1, 100);
             _logger.Information("Loaded {Count} mods from repository", AvailableMods.Count);
         }
         catch (Exception ex)

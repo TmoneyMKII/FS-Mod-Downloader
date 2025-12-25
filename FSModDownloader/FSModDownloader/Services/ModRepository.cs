@@ -12,28 +12,32 @@ using FSModDownloader.Models;
 using Serilog;
 
 /// <summary>
-/// Scraping-based mod repository for mod-network.com.
+/// Multi-source mod repository that aggregates mods from several websites.
+/// Sources: mod-network.com, fs19.net, fs22.com, farmingsimulator25mods.com
 /// </summary>
 public class ModRepository : IModRepository
 {
     private readonly ILogger _logger = Log.ForContext<ModRepository>();
     private readonly HttpClient _httpClient;
-    private readonly string _baseUrl = "https://mod-network.com";
-    private readonly string _gameSlug;
+    private readonly string _gameVersion;
 
     // Cache to reduce requests
     private readonly Dictionary<string, (Mod mod, DateTime cachedAt)> _modCache = new();
     private readonly TimeSpan _cacheExpiry = TimeSpan.FromMinutes(10);
 
+    // Source configurations per game version
+    private readonly List<ModSource> _sources;
+
     public ModRepository(string gameTitle = "fs2025")
     {
-        // Map game title to mod-network slug
-        _gameSlug = gameTitle.ToLower() switch
+        _gameVersion = gameTitle.ToLower() switch
         {
-            "fs2025" or "fs25" => "farming-simulator-25-mods",
-            "fs2022" or "fs22" => "farming-simulator-22-mods",
-            "fs2019" or "fs19" => "farming-simulator-19",
-            _ => "farming-simulator-25-mods"
+            "fs2025" or "fs25" => "FS25",
+            "fs2022" or "fs22" => "FS22",
+            "fs2019" or "fs19" => "FS19",
+            "fs2017" or "fs17" => "FS17",
+            "fs2015" or "fs15" => "FS15",
+            _ => "FS25"
         };
 
         _httpClient = new HttpClient();
@@ -41,50 +45,87 @@ public class ModRepository : IModRepository
         _httpClient.DefaultRequestHeaders.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8");
         _httpClient.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.5");
         _httpClient.Timeout = TimeSpan.FromSeconds(30);
+
+        // Configure sources based on game version
+        _sources = GetSourcesForGame(_gameVersion);
+    }
+
+    private List<ModSource> GetSourcesForGame(string gameVersion)
+    {
+        return gameVersion switch
+        {
+            "FS25" => new List<ModSource>
+            {
+                new ModSource("mod-network", "https://mod-network.com", "/en/farming-simulator-25-mods/{page}", ModSourceType.ModNetwork),
+                new ModSource("fs25mods", "https://farmingsimulator25mods.com", "/page/{page}/", ModSourceType.FarmingSimulatorMods),
+            },
+            "FS22" => new List<ModSource>
+            {
+                new ModSource("mod-network", "https://mod-network.com", "/en/farming-simulator-22-mods/{page}", ModSourceType.ModNetwork),
+                new ModSource("fs22", "https://fs22.com", "/page/{page}/", ModSourceType.FsXXNet),
+            },
+            "FS19" => new List<ModSource>
+            {
+                new ModSource("mod-network", "https://mod-network.com", "/en/farming-simulator-19/{page}", ModSourceType.ModNetwork),
+                new ModSource("fs19", "https://fs19.net", "/page/{page}/", ModSourceType.FsXXNet),
+            },
+            _ => new List<ModSource>
+            {
+                new ModSource("mod-network", "https://mod-network.com", "/en/farming-simulator-25-mods/{page}", ModSourceType.ModNetwork),
+            }
+        };
     }
 
     /// <summary>
-    /// Searches for mods on mod-network.com by scraping the website.
+    /// Searches for mods across all configured sources.
+    /// Fetches multiple pages from each source to maximize results.
     /// </summary>
-    public async Task<List<Mod>> SearchModsAsync(string query, string? category = null, int page = 1, int pageSize = 20)
+    public async Task<List<Mod>> SearchModsAsync(string query, string? category = null, int page = 1, int pageSize = 50)
     {
         try
         {
-            _logger.Information("Searching mod-network for: {Query}, Page: {Page}", query, page);
+            _logger.Information("Searching {Count} sources for: {Query}, Page: {Page}", _sources.Count, query, page);
 
-            var mods = new List<Mod>();
-            var url = $"{_baseUrl}/en/{_gameSlug}/{page}";
+            var allMods = new List<Mod>();
+            var tasks = new List<Task<List<Mod>>>();
 
-            _logger.Debug("Fetching URL: {Url}", url);
-
-            var html = await FetchHtmlAsync(url);
-            if (string.IsNullOrEmpty(html))
+            // Fetch multiple pages from all sources in parallel to get more mods
+            // Each source provides ~8-20 mods per page, so we fetch 5 pages from each
+            var pagesToFetch = 5;
+            
+            foreach (var source in _sources)
             {
-                _logger.Warning("No HTML content returned from mod-network");
-                return mods;
+                for (int p = page; p < page + pagesToFetch; p++)
+                {
+                    tasks.Add(FetchModsFromSourceAsync(source, p));
+                }
             }
 
-            // Parse JSON-LD structured data from the page
-            mods = ParseJsonLdMods(html);
-
-            // If JSON-LD parsing didn't work, fall back to HTML parsing
-            if (mods.Count == 0)
+            var results = await Task.WhenAll(tasks);
+            
+            foreach (var mods in results)
             {
-                _logger.Information("JSON-LD parsing returned no results, trying HTML parsing");
-                mods = ParseHtmlMods(html);
+                allMods.AddRange(mods);
             }
+
+            // Deduplicate by name (case-insensitive, normalized)
+            var uniqueMods = allMods
+                .GroupBy(m => NormalizeModName(m.Name))
+                .Select(g => g.First())
+                .ToList();
+
+            _logger.Information("Found {Total} mods total, {Unique} unique after deduplication", allMods.Count, uniqueMods.Count);
 
             // Filter by query if provided
             if (!string.IsNullOrWhiteSpace(query))
             {
-                mods = mods.Where(m => 
+                uniqueMods = uniqueMods.Where(m => 
                     m.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
                     m.Author.Contains(query, StringComparison.OrdinalIgnoreCase))
                     .ToList();
             }
 
-            _logger.Information("Found {Count} mods", mods.Count);
-            return mods.Take(pageSize).ToList();
+            return uniqueMods.Take(pageSize).ToList();
         }
         catch (Exception ex)
         {
@@ -93,10 +134,271 @@ public class ModRepository : IModRepository
         }
     }
 
+    private string NormalizeModName(string name)
+    {
+        // Remove version numbers and normalize for deduplication
+        var normalized = Regex.Replace(name, @"\s*[vV]?\d+\.\d+(\.\d+)?(\.\d+)?\s*$", "");
+        return normalized.ToLowerInvariant().Trim();
+    }
+
+    private async Task<List<Mod>> FetchModsFromSourceAsync(ModSource source, int page)
+    {
+        try
+        {
+            var url = source.BaseUrl + source.PagePattern.Replace("{page}", page.ToString());
+            _logger.Debug("Fetching from {Source}: {Url}", source.Name, url);
+
+            var html = await FetchHtmlAsync(url);
+            if (string.IsNullOrEmpty(html))
+            {
+                _logger.Warning("No content from {Source}", source.Name);
+                return new List<Mod>();
+            }
+
+            var mods = source.Type switch
+            {
+                ModSourceType.ModNetwork => ParseModNetworkPage(html, source),
+                ModSourceType.FsXXNet => ParseFsXXNetPage(html, source),
+                ModSourceType.FarmingSimulatorMods => ParseFarmingSimulatorModsPage(html, source),
+                _ => new List<Mod>()
+            };
+
+            _logger.Information("Found {Count} mods from {Source}", mods.Count, source.Name);
+            return mods;
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning(ex, "Error fetching from {Source}", source.Name);
+            return new List<Mod>();
+        }
+    }
+
+    #region Source-Specific Parsers
+
+    /// <summary>
+    /// Parses mod-network.com pages (uses JSON-LD and HTML).
+    /// </summary>
+    private List<Mod> ParseModNetworkPage(string html, ModSource source)
+    {
+        var mods = ParseJsonLdMods(html, source);
+        
+        if (mods.Count == 0)
+        {
+            _logger.Debug("JSON-LD parsing returned no results for {Source}, trying HTML", source.Name);
+            mods = ParseModNetworkHtml(html, source);
+        }
+
+        return mods;
+    }
+
+    /// <summary>
+    /// Parses fs19.net and fs22.com pages (WordPress-style sites).
+    /// </summary>
+    private List<Mod> ParseFsXXNetPage(string html, ModSource source)
+    {
+        var mods = new List<Mod>();
+        
+        try
+        {
+            var doc = new HtmlDocument();
+            doc.LoadHtml(html);
+
+            // These sites use article/post structures with links to mod pages
+            // Pattern: /farming-simulator-XX-mods/{category}/{mod-slug}/
+            var modLinks = doc.DocumentNode.SelectNodes("//article//h2//a|//div[contains(@class,'post')]//h2//a|//a[contains(@href, '-mods/') and contains(@href, '/v')]");
+
+            if (modLinks == null)
+            {
+                // Fallback: look for any links containing the mod pattern
+                modLinks = doc.DocumentNode.SelectNodes("//a[contains(@href, 'farming-simulator')]");
+            }
+
+            if (modLinks == null)
+            {
+                _logger.Warning("No mod links found for {Source}", source.Name);
+                return mods;
+            }
+
+            var processedUrls = new HashSet<string>();
+
+            foreach (var link in modLinks)
+            {
+                var href = link.GetAttributeValue("href", "");
+                
+                // Skip non-mod links
+                if (string.IsNullOrEmpty(href) || 
+                    href.Contains("/category/") || 
+                    href.Contains("/tag/") ||
+                    href.Contains("/page/") ||
+                    href.Contains("#"))
+                    continue;
+
+                // Normalize URL
+                if (!href.StartsWith("http"))
+                {
+                    href = source.BaseUrl + href;
+                }
+
+                if (processedUrls.Contains(href))
+                    continue;
+                processedUrls.Add(href);
+
+                // Extract mod name from link text or URL
+                var name = link.InnerText?.Trim();
+                if (string.IsNullOrEmpty(name))
+                {
+                    // Extract from URL slug
+                    var match = Regex.Match(href, @"/([^/]+)/?$");
+                    if (match.Success)
+                    {
+                        name = match.Groups[1].Value.Replace("-", " ");
+                        name = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(name);
+                    }
+                }
+
+                if (string.IsNullOrEmpty(name) || name.Length < 3)
+                    continue;
+
+                // Try to get image
+                var parentArticle = link.SelectSingleNode("ancestor::article") ?? link.ParentNode;
+                var img = parentArticle?.SelectSingleNode(".//img");
+                var imageUrl = img?.GetAttributeValue("src", null) ?? img?.GetAttributeValue("data-src", null);
+
+                // Generate unique ID from URL
+                var modId = $"{source.Name}_{href.GetHashCode():X8}";
+
+                mods.Add(new Mod
+                {
+                    Id = modId,
+                    Name = HtmlEntity.DeEntitize(name),
+                    Author = "Unknown",
+                    ImageUrl = imageUrl,
+                    RepositoryUrl = href,
+                    Source = source.Name,
+                    GameVersions = new List<string> { _gameVersion }
+                });
+            }
+
+            _logger.Debug("Parsed {Count} mods from {Source} using FsXX parser", mods.Count, source.Name);
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning(ex, "Error parsing {Source} page", source.Name);
+        }
+
+        return mods;
+    }
+
+    /// <summary>
+    /// Parses farmingsimulator25mods.com pages.
+    /// </summary>
+    private List<Mod> ParseFarmingSimulatorModsPage(string html, ModSource source)
+    {
+        var mods = new List<Mod>();
+        
+        try
+        {
+            var doc = new HtmlDocument();
+            doc.LoadHtml(html);
+
+            // WordPress structure - look for h2 elements with links that are mod titles
+            // Pattern: farmingsimulator25mods.com/{mod-slug}/
+            var modLinks = doc.DocumentNode.SelectNodes(
+                "//h2/a[contains(@href, 'farmingsimulator25mods.com/')]|" +
+                "//article//a[contains(@href, 'farmingsimulator25mods.com/') and h2]|" +
+                "//div[contains(@class,'post')]//h2/a"
+            );
+
+            if (modLinks == null || modLinks.Count == 0)
+            {
+                // Broader fallback - get all links that look like mod pages
+                modLinks = doc.DocumentNode.SelectNodes(
+                    "//a[contains(@href, 'farmingsimulator25mods.com/') and " +
+                    "not(contains(@href, '/category/')) and " +
+                    "not(contains(@href, '/tag/')) and " +
+                    "not(contains(@href, '/page/')) and " +
+                    "not(contains(@href, '#'))]"
+                );
+            }
+
+            if (modLinks == null)
+            {
+                _logger.Warning("No mod links found for {Source}", source.Name);
+                return mods;
+            }
+
+            var processedUrls = new HashSet<string>();
+
+            foreach (var link in modLinks)
+            {
+                var href = link.GetAttributeValue("href", "");
+                
+                // Skip non-mod links
+                if (string.IsNullOrEmpty(href) || 
+                    href.Contains("/category/") || 
+                    href.Contains("/tag/") ||
+                    href.Contains("/page/") ||
+                    href.Contains("/how-to") ||
+                    href.Contains("/contact") ||
+                    href.Contains("/about") ||
+                    href.Contains("#"))
+                    continue;
+
+                if (processedUrls.Contains(href))
+                    continue;
+                processedUrls.Add(href);
+
+                var name = link.InnerText?.Trim();
+                if (string.IsNullOrEmpty(name))
+                {
+                    var match = Regex.Match(href, @"/([^/]+)/?$");
+                    if (match.Success)
+                    {
+                        name = match.Groups[1].Value.Replace("-", " ");
+                        name = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(name);
+                    }
+                }
+
+                if (string.IsNullOrEmpty(name) || name.Length < 3)
+                    continue;
+
+                // Get image
+                var parentArticle = link.SelectSingleNode("ancestor::article") ?? link.ParentNode?.ParentNode;
+                var img = parentArticle?.SelectSingleNode(".//img");
+                var imageUrl = img?.GetAttributeValue("src", null) ?? img?.GetAttributeValue("data-src", null);
+
+                var modId = $"{source.Name}_{href.GetHashCode():X8}";
+
+                mods.Add(new Mod
+                {
+                    Id = modId,
+                    Name = HtmlEntity.DeEntitize(name),
+                    Author = "Unknown",
+                    ImageUrl = imageUrl,
+                    RepositoryUrl = href,
+                    Source = source.Name,
+                    GameVersions = new List<string> { _gameVersion }
+                });
+            }
+
+            _logger.Debug("Parsed {Count} mods from {Source} using FS25Mods parser", mods.Count, source.Name);
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning(ex, "Error parsing {Source} page", source.Name);
+        }
+
+        return mods;
+    }
+
+    #endregion
+
+    #region JSON-LD and ModNetwork Parsing
+
     /// <summary>
     /// Parses mods from JSON-LD structured data embedded in the page.
     /// </summary>
-    private List<Mod> ParseJsonLdMods(string html)
+    private List<Mod> ParseJsonLdMods(string html, ModSource source)
     {
         var mods = new List<Mod>();
 
@@ -124,7 +426,7 @@ public class ModRepository : IModRepository
                         {
                             try
                             {
-                                var mod = ParseJsonLdItem(item);
+                                var mod = ParseJsonLdItem(item, source);
                                 if (mod != null)
                                 {
                                     mods.Add(mod);
@@ -151,7 +453,7 @@ public class ModRepository : IModRepository
         return mods;
     }
 
-    private Mod? ParseJsonLdItem(JsonElement item)
+    private Mod? ParseJsonLdItem(JsonElement item, ModSource source)
     {
         // Extract URL to get mod ID
         if (!item.TryGetProperty("url", out var urlElement))
@@ -186,19 +488,20 @@ public class ModRepository : IModRepository
 
         return new Mod
         {
-            Id = modId,
+            Id = $"modnetwork_{modId}",
             Name = name,
-            Author = "Unknown", // JSON-LD doesn't include author, would need to fetch detail page
+            Author = "Unknown",
             ImageUrl = imageUrl,
-            RepositoryUrl = _baseUrl + url,
-            GameVersions = new List<string> { _gameSlug.Contains("25") ? "FS25" : _gameSlug.Contains("22") ? "FS22" : "FS19" }
+            RepositoryUrl = source.BaseUrl + url,
+            Source = source.Name,
+            GameVersions = new List<string> { _gameVersion }
         };
     }
 
     /// <summary>
-    /// Falls back to HTML parsing if JSON-LD is not available.
+    /// Falls back to HTML parsing for mod-network if JSON-LD is not available.
     /// </summary>
-    private List<Mod> ParseHtmlMods(string html)
+    private List<Mod> ParseModNetworkHtml(string html, ModSource source)
     {
         var mods = new List<Mod>();
 
@@ -212,7 +515,7 @@ public class ModRepository : IModRepository
             
             if (modLinks == null)
             {
-                _logger.Warning("No mod links found in HTML");
+                _logger.Warning("No mod links found in HTML for {Source}", source.Name);
                 return mods;
             }
 
@@ -242,12 +545,13 @@ public class ModRepository : IModRepository
 
                 mods.Add(new Mod
                 {
-                    Id = modId,
+                    Id = $"modnetwork_{modId}",
                     Name = name,
                     Author = "Unknown",
                     ImageUrl = imageUrl,
-                    RepositoryUrl = _baseUrl + href,
-                    GameVersions = new List<string> { _gameSlug.Contains("25") ? "FS25" : "FS22" }
+                    RepositoryUrl = source.BaseUrl + href,
+                    Source = source.Name,
+                    GameVersions = new List<string> { _gameVersion }
                 });
 
                 _logger.Debug("Parsed mod from HTML: {ModId} - {Name}", modId, name);
@@ -255,11 +559,13 @@ public class ModRepository : IModRepository
         }
         catch (Exception ex)
         {
-            _logger.Warning(ex, "Error parsing HTML mods");
+            _logger.Warning(ex, "Error parsing HTML mods for {Source}", source.Name);
         }
 
         return mods;
     }
+
+    #endregion
 
     /// <summary>
     /// Retrieves detailed information about a specific mod.
@@ -314,22 +620,35 @@ public class ModRepository : IModRepository
             var doc = new HtmlDocument();
             doc.LoadHtml(html);
 
-            // Try to find description
-            var descNode = doc.DocumentNode.SelectSingleNode("//div[contains(@class, 'description')]|//div[contains(@class, 'mod-description')]|//p[contains(@class, 'description')]");
+            // Try to find description from various common patterns
+            var descNode = doc.DocumentNode.SelectSingleNode(
+                "//div[contains(@class, 'description')]|" +
+                "//div[contains(@class, 'mod-description')]|" +
+                "//div[contains(@class, 'entry-content')]|" +
+                "//div[contains(@class, 'post-content')]|" +
+                "//p[contains(@class, 'description')]");
+            
             if (descNode != null)
             {
                 mod.Description = HtmlEntity.DeEntitize(descNode.InnerText?.Trim() ?? "");
             }
 
-            // Try to find download link
-            var downloadNode = doc.DocumentNode.SelectSingleNode("//a[contains(@href, 'download')]|//a[contains(@class, 'download')]");
+            // Try to find download link from various patterns
+            var downloadNode = doc.DocumentNode.SelectSingleNode(
+                "//a[contains(@href, 'download')]|" +
+                "//a[contains(@class, 'download')]|" +
+                "//a[contains(text(), 'Download')]|" +
+                "//a[contains(text(), 'DOWNLOAD')]");
+            
             var downloadUrl = downloadNode?.GetAttributeValue("href", null);
 
             if (!string.IsNullOrEmpty(downloadUrl))
             {
-                if (!downloadUrl.StartsWith("http"))
+                // Make absolute URL if needed
+                if (!downloadUrl.StartsWith("http") && !string.IsNullOrEmpty(mod.RepositoryUrl))
                 {
-                    downloadUrl = _baseUrl + downloadUrl;
+                    var baseUri = new Uri(mod.RepositoryUrl);
+                    downloadUrl = new Uri(baseUri, downloadUrl).ToString();
                 }
 
                 mod.Versions.Add(new ModVersion
@@ -339,6 +658,22 @@ public class ModRepository : IModRepository
                     SupportedGameVersions = mod.GameVersions,
                     ReleaseDate = DateTime.UtcNow
                 });
+            }
+
+            // Try to extract author
+            var authorNode = doc.DocumentNode.SelectSingleNode(
+                "//span[contains(@class, 'author')]|" +
+                "//a[contains(@rel, 'author')]|" +
+                "//*[contains(text(), 'Author')]/following-sibling::*|" +
+                "//*[contains(text(), 'Credits')]/following-sibling::*");
+            
+            if (authorNode != null && mod.Author == "Unknown")
+            {
+                var author = HtmlEntity.DeEntitize(authorNode.InnerText?.Trim() ?? "");
+                if (!string.IsNullOrEmpty(author) && author.Length < 100)
+                {
+                    mod.Author = author;
+                }
             }
         }
         catch (Exception ex)
@@ -577,3 +912,41 @@ public class ModRepository : IModRepository
 
     #endregion
 }
+
+#region Supporting Types
+
+/// <summary>
+/// Types of mod source websites with different parsing strategies.
+/// </summary>
+public enum ModSourceType
+{
+    /// <summary>mod-network.com - uses JSON-LD structured data</summary>
+    ModNetwork,
+    
+    /// <summary>fs19.net, fs22.com - WordPress sites with article structure</summary>
+    FsXXNet,
+    
+    /// <summary>farmingsimulator25mods.com - WordPress with different URL patterns</summary>
+    FarmingSimulatorMods
+}
+
+/// <summary>
+/// Configuration for a mod source website.
+/// </summary>
+public class ModSource
+{
+    public string Name { get; }
+    public string BaseUrl { get; }
+    public string PagePattern { get; }
+    public ModSourceType Type { get; }
+
+    public ModSource(string name, string baseUrl, string pagePattern, ModSourceType type)
+    {
+        Name = name;
+        BaseUrl = baseUrl;
+        PagePattern = pagePattern;
+        Type = type;
+    }
+}
+
+#endregion
