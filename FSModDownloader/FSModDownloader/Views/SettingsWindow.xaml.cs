@@ -1,7 +1,11 @@
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Interop;
+using FSModDownloader.Models;
+using FSModDownloader.Services;
 using Microsoft.Win32;
 
 namespace FSModDownloader.Views;
@@ -15,9 +19,21 @@ public partial class SettingsWindow : Window
     private const int DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1 = 19;
     private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
 
+    private readonly GamePathDetector _gamePathDetector = new();
+    private readonly ObservableCollection<GameInstance> _gameInstances = new();
+    private static readonly string SettingsFilePath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "FSModDownloader", "settings.json");
+
+    public ObservableCollection<GameInstance> GameInstances => _gameInstances;
+
     public SettingsWindow()
     {
         InitializeComponent();
+        
+        GameInstancesList.ItemsSource = _gameInstances;
+        _gameInstances.CollectionChanged += (s, e) => UpdateEmptyState();
+        
         LoadSettings();
         CalculateCacheSize();
         
@@ -44,14 +60,150 @@ public partial class SettingsWindow : Window
 
     private void LoadSettings()
     {
-        // Load default paths
-        var documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        try
+        {
+            // Load from settings file if exists
+            if (File.Exists(SettingsFilePath))
+            {
+                var json = File.ReadAllText(SettingsFilePath);
+                var settings = JsonSerializer.Deserialize<AppSettings>(json);
+                
+                if (settings != null)
+                {
+                    DownloadPathTextBox.Text = settings.DownloadPath;
+                    AutoInstallCheckBox.IsChecked = settings.AutoInstallAfterDownload;
+                    DeleteAfterInstallCheckBox.IsChecked = settings.DeleteAfterInstall;
+                    AutoCheckUpdatesCheckBox.IsChecked = settings.AutoCheckForUpdates;
+                    NotifyUpdatesCheckBox.IsChecked = settings.NotifyOnModUpdates;
+                    StartMinimizedCheckBox.IsChecked = settings.StartMinimized;
+                    MinimizeToTrayCheckBox.IsChecked = settings.MinimizeToTray;
+                    ConfirmExitCheckBox.IsChecked = settings.ConfirmOnExit;
+                    
+                    foreach (var instance in settings.GameInstances)
+                    {
+                        _gameInstances.Add(instance);
+                    }
+                }
+            }
+            
+            // Set defaults if empty
+            if (string.IsNullOrEmpty(DownloadPathTextBox.Text))
+            {
+                DownloadPathTextBox.Text = AppSettings.GetDefaultDownloadPath();
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error loading settings: {ex.Message}", "Warning", 
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            // Use defaults
+            DownloadPathTextBox.Text = AppSettings.GetDefaultDownloadPath();
+        }
         
-        FS22PathTextBox.Text = Path.Combine(documentsPath, "My Games", "FarmingSimulator2022", "mods");
-        FS25PathTextBox.Text = Path.Combine(documentsPath, "My Games", "FarmingSimulator2025", "mods");
-        DownloadPathTextBox.Text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "FSMods");
+        UpdateEmptyState();
+    }
+
+    private void UpdateEmptyState()
+    {
+        NoGamesMessage.Visibility = _gameInstances.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void ScanForGames_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var foundInstances = _gamePathDetector.ScanForGameInstallations();
+            var newCount = 0;
+            
+            foreach (var instance in foundInstances)
+            {
+                // Don't add duplicates
+                if (!_gameInstances.Any(g => g.ModsPath.Equals(instance.ModsPath, StringComparison.OrdinalIgnoreCase)))
+                {
+                    _gameInstances.Add(instance);
+                    newCount++;
+                }
+            }
+            
+            if (newCount > 0)
+            {
+                MessageBox.Show($"Found {newCount} new game installation(s)!", "Scan Complete", 
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else if (foundInstances.Count == 0)
+            {
+                MessageBox.Show("No Farming Simulator installations found.\n\nYou can manually add game instances using the 'Add Manual Entry' button.", 
+                    "Scan Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else
+            {
+                MessageBox.Show("All detected game installations are already in the list.", 
+                    "Scan Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error scanning for games: {ex.Message}", "Error", 
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void AddManualEntry_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new AddGameInstanceDialog();
+        dialog.Owner = this;
         
-        // TODO: Load saved settings from config file
+        if (dialog.ShowDialog() == true && dialog.GameInstance != null)
+        {
+            // Check for duplicates
+            if (_gameInstances.Any(g => g.ModsPath.Equals(dialog.GameInstance.ModsPath, StringComparison.OrdinalIgnoreCase)))
+            {
+                MessageBox.Show("This mods folder is already configured.", "Duplicate Entry", 
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            
+            _gameInstances.Add(dialog.GameInstance);
+        }
+    }
+
+    private void BrowseGamePath_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button button || button.Tag is not string instanceId)
+            return;
+
+        var instance = _gameInstances.FirstOrDefault(g => g.Id == instanceId);
+        if (instance == null) return;
+
+        var path = BrowseForFolder(instance.ModsPath);
+        if (!string.IsNullOrEmpty(path))
+        {
+            instance.ModsPath = path;
+            // Refresh the list
+            var index = _gameInstances.IndexOf(instance);
+            _gameInstances.RemoveAt(index);
+            _gameInstances.Insert(index, instance);
+        }
+    }
+
+    private void RemoveGameInstance_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button button || button.Tag is not string instanceId)
+            return;
+
+        var instance = _gameInstances.FirstOrDefault(g => g.Id == instanceId);
+        if (instance == null) return;
+
+        var result = MessageBox.Show(
+            $"Remove '{instance.Name}' from the list?\n\nThis will not delete any files.",
+            "Remove Game Instance",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result == MessageBoxResult.Yes)
+        {
+            _gameInstances.Remove(instance);
+        }
     }
 
     private void CalculateCacheSize()
@@ -101,20 +253,6 @@ public partial class SettingsWindow : Window
             len = len / 1024;
         }
         return $"{len:0.##} {sizes[order]}";
-    }
-
-    private void BrowseFS22_Click(object sender, RoutedEventArgs e)
-    {
-        var path = BrowseForFolder(FS22PathTextBox.Text);
-        if (!string.IsNullOrEmpty(path))
-            FS22PathTextBox.Text = path;
-    }
-
-    private void BrowseFS25_Click(object sender, RoutedEventArgs e)
-    {
-        var path = BrowseForFolder(FS25PathTextBox.Text);
-        if (!string.IsNullOrEmpty(path))
-            FS25PathTextBox.Text = path;
     }
 
     private void BrowseDownload_Click(object sender, RoutedEventArgs e)
@@ -174,14 +312,15 @@ public partial class SettingsWindow : Window
     private void ResetDefaults_Click(object sender, RoutedEventArgs e)
     {
         var result = MessageBox.Show(
-            "Are you sure you want to reset all settings to their default values?",
+            "Are you sure you want to reset all settings to their default values?\n\nThis will clear all configured game instances.",
             "Reset Settings",
             MessageBoxButton.YesNo,
             MessageBoxImage.Question);
 
         if (result == MessageBoxResult.Yes)
         {
-            LoadSettings();
+            _gameInstances.Clear();
+            DownloadPathTextBox.Text = AppSettings.GetDefaultDownloadPath();
             AutoInstallCheckBox.IsChecked = true;
             DeleteAfterInstallCheckBox.IsChecked = true;
             AutoCheckUpdatesCheckBox.IsChecked = true;
@@ -200,40 +339,53 @@ public partial class SettingsWindow : Window
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
-        // Validate paths
-        if (!string.IsNullOrEmpty(FS22PathTextBox.Text) && !Directory.Exists(FS22PathTextBox.Text))
+        try
         {
-            var result = MessageBox.Show(
-                "The FS22 mods folder does not exist. Do you want to create it?",
-                "Create Folder",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
-
-            if (result == MessageBoxResult.Yes)
+            // Ensure settings directory exists
+            var settingsDir = Path.GetDirectoryName(SettingsFilePath)!;
+            if (!Directory.Exists(settingsDir))
             {
-                try { Directory.CreateDirectory(FS22PathTextBox.Text); }
-                catch { MessageBox.Show("Failed to create folder.", "Error", MessageBoxButton.OK, MessageBoxImage.Error); return; }
+                Directory.CreateDirectory(settingsDir);
             }
-        }
 
-        if (!string.IsNullOrEmpty(FS25PathTextBox.Text) && !Directory.Exists(FS25PathTextBox.Text))
+            // Create download folder if needed
+            if (!string.IsNullOrEmpty(DownloadPathTextBox.Text) && !Directory.Exists(DownloadPathTextBox.Text))
+            {
+                var result = MessageBox.Show(
+                    "The download folder does not exist. Do you want to create it?",
+                    "Create Folder",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    Directory.CreateDirectory(DownloadPathTextBox.Text);
+                }
+            }
+
+            // Save settings
+            var settings = new AppSettings
+            {
+                DownloadPath = DownloadPathTextBox.Text,
+                AutoInstallAfterDownload = AutoInstallCheckBox.IsChecked ?? true,
+                DeleteAfterInstall = DeleteAfterInstallCheckBox.IsChecked ?? true,
+                AutoCheckForUpdates = AutoCheckUpdatesCheckBox.IsChecked ?? true,
+                NotifyOnModUpdates = NotifyUpdatesCheckBox.IsChecked ?? true,
+                StartMinimized = StartMinimizedCheckBox.IsChecked ?? false,
+                MinimizeToTray = MinimizeToTrayCheckBox.IsChecked ?? false,
+                ConfirmOnExit = ConfirmExitCheckBox.IsChecked ?? true,
+                GameInstances = _gameInstances.ToList()
+            };
+
+            var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(SettingsFilePath, json);
+            
+            DialogResult = true;
+            Close();
+        }
+        catch (Exception ex)
         {
-            var result = MessageBox.Show(
-                "The FS25 mods folder does not exist. Do you want to create it?",
-                "Create Folder",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
-
-            if (result == MessageBoxResult.Yes)
-            {
-                try { Directory.CreateDirectory(FS25PathTextBox.Text); }
-                catch { MessageBox.Show("Failed to create folder.", "Error", MessageBoxButton.OK, MessageBoxImage.Error); return; }
-            }
+            MessageBox.Show($"Error saving settings: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
-
-        // TODO: Save settings to config file
-        
-        DialogResult = true;
-        Close();
     }
 }

@@ -64,7 +64,7 @@ public partial class MainWindowViewModel : ObservableObject
             StatusMessage = "Detecting game installations...";
 
             // Run on background thread to avoid blocking UI
-            GameInstances = await Task.Run(() => _gamePathDetector.DetectGameInstallations());
+            GameInstances = await Task.Run(() => _gamePathDetector.ScanForGameInstallations());
 
             if (GameInstances.Count > 0)
             {
