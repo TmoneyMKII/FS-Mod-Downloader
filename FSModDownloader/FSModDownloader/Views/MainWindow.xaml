@@ -426,11 +426,10 @@
                         
                         <!-- Game Selection -->
                         <TextBlock Text="GAME INSTANCE" FontSize="11" FontWeight="Bold" Foreground="#2ECC71" Margin="0,0,0,12"/>
-                        <ComboBox x:Name="GameInstanceCombo" Style="{StaticResource ModernComboBox}" Height="44" VerticalContentAlignment="Center">
-                            <ComboBoxItem IsSelected="True">Select Game...</ComboBoxItem>
-                            <ComboBoxItem>Farming Simulator 22</ComboBoxItem>
-                            <ComboBoxItem>Farming Simulator 25</ComboBoxItem>
-                        </ComboBox>
+                        <ComboBox x:Name="GameInstanceCombo" Style="{StaticResource ModernComboBox}" Height="44" VerticalContentAlignment="Center"
+                                  ItemsSource="{Binding GameInstances}"
+                                  SelectedItem="{Binding SelectedGameInstance}"
+                                  DisplayMemberPath="Name"/>
                         
                         <!-- Categories -->
                         <TextBlock Text="CATEGORIES" FontSize="11" FontWeight="Bold" Foreground="#2ECC71" Margin="0,32,0,12"/>

@@ -61,14 +61,25 @@ public partial class MainWindowViewModel : ObservableObject
         try
         {
             IsLoading = true;
-            StatusMessage = "Detecting game installations...";
+            StatusMessage = "Loading settings...";
 
-            // Run on background thread to avoid blocking UI
-            GameInstances = await Task.Run(() => _gamePathDetector.ScanForGameInstallations());
+            // Load game instances from saved settings
+            var settings = SettingsService.Load();
+            GameInstances = settings.GameInstances;
 
             if (GameInstances.Count > 0)
             {
-                SelectedGameInstance = GameInstances[0];
+                // Select the previously selected instance, or the first one
+                if (!string.IsNullOrEmpty(settings.SelectedGameInstanceId))
+                {
+                    SelectedGameInstance = GameInstances.FirstOrDefault(g => g.Id == settings.SelectedGameInstanceId) 
+                                          ?? GameInstances[0];
+                }
+                else
+                {
+                    SelectedGameInstance = GameInstances[0];
+                }
+                
                 // Load installed mods for the selected game
                 await RefreshInstalledModsAsync();
             }
@@ -88,6 +99,36 @@ public partial class MainWindowViewModel : ObservableObject
         {
             IsLoading = false;
         }
+    }
+
+    /// <summary>
+    /// Reloads game instances from settings. Call after settings are saved.
+    /// </summary>
+    public void ReloadGameInstances()
+    {
+        SettingsService.ClearCache();
+        var settings = SettingsService.Load();
+        GameInstances = settings.GameInstances;
+        
+        if (GameInstances.Count > 0)
+        {
+            // Try to keep the same selection
+            if (SelectedGameInstance != null)
+            {
+                var current = GameInstances.FirstOrDefault(g => g.Id == SelectedGameInstance.Id);
+                SelectedGameInstance = current ?? GameInstances[0];
+            }
+            else
+            {
+                SelectedGameInstance = GameInstances[0];
+            }
+        }
+        else
+        {
+            SelectedGameInstance = null;
+        }
+        
+        StatusMessage = $"Found {GameInstances.Count} game installation(s), {AvailableMods.Count} mods available";
     }
 
     /// <summary>

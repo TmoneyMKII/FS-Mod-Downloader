@@ -50,7 +50,15 @@ public partial class MainWindow : Window
         {
             Owner = this
         };
-        settingsWindow.ShowDialog();
+        
+        if (settingsWindow.ShowDialog() == true)
+        {
+            // Settings were saved, reload game instances
+            if (DataContext is MainWindowViewModel viewModel)
+            {
+                viewModel.ReloadGameInstances();
+            }
+        }
     }
 
     private void AboutButton_Click(object sender, RoutedEventArgs e)
