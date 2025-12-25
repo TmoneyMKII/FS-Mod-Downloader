@@ -1,63 +1,180 @@
-# FS Mod Downloader
+# FS Mod Downloader - Developer Documentation
 
-A desktop application for managing and downloading Farming Simulator mods, similar to CKAN for Kerbal Space Program.
+Technical documentation for developers contributing to or building FS Mod Downloader.
 
-## Features
+> **For end-user documentation**, see the [main README](../README.md).
 
-- **Mod Discovery**: Browse and search for available mods from the repository
-- **One-Click Installation**: Easy mod installation with automatic dependency management
-- **Mod Management**: Install, uninstall, enable, and disable mods
-- **Multiple Game Versions**: Support for different Farming Simulator versions
-- **Auto-Detection**: Automatically detects Farming Simulator installations
-- **Download Management**: Track and manage mod downloads with progress indicators
-- **Mod Categories**: Filter mods by category (Vehicles, Maps, Equipment, etc.)
-- **Version Control**: Manage multiple versions of mods
+---
 
-## Architecture
+## 🛠️ Technology Stack
 
-The application is built using C# and WPF with the following structure:
+- **Framework**: .NET 8.0 (Windows)
+- **UI**: WPF (Windows Presentation Foundation)
+- **Pattern**: MVVM (Model-View-ViewModel)
+- **MVVM Toolkit**: CommunityToolkit.Mvvm
+- **Logging**: Serilog
+- **HTML Parsing**: HtmlAgilityPack
+- **Data Source**: mod-network.com (web scraping)
 
-- **Models**: Data models for mods, game instances, and versions
-- **Services**: Core business logic for mod management, downloading, and repository access
-- **ViewModels**: MVVM pattern for UI state management
-- **Views**: WPF UI components
+---
 
-## Building
-
-Requirements:
-- .NET 8.0 SDK or later
-- Visual Studio 2022 or Visual Studio Code
-
-```bash
-dotnet build
-```
-
-## Running
-
-```bash
-dotnet run
-```
-
-## Project Structure
+## 📁 Project Structure
 
 ```
 FSModDownloader/
-├── Models/              # Data models
-├── Services/            # Business logic
-├── ViewModels/          # MVVM ViewModels
-├── Views/               # WPF UI
-├── Utilities/           # Helper utilities
-├── App.xaml             # Application resources
-└── AppSettings.cs       # Configuration
+├── Assets/                  # App icons and images
+│   ├── favicon.ico
+│   └── Logo.png
+├── Models/                  # Data models
+│   ├── GameInstance.cs      # Game installation representation
+│   ├── Mod.cs               # Mod data model
+│   └── ModVersion.cs        # Mod version info
+├── Services/                # Business logic
+│   ├── GamePathDetector.cs  # Auto-detect FS installations
+│   ├── IModDownloader.cs    # Download interface
+│   ├── IModManager.cs       # Mod management interface
+│   ├── IModRepository.cs    # Repository interface
+│   ├── ModDownloader.cs     # Download implementation
+│   ├── ModManager.cs        # Mod management (install/uninstall)
+│   ├── ModRepository.cs     # Web scraper for mod-network.com
+│   └── SettingsService.cs   # Settings persistence
+├── Utilities/               # Helper classes
+│   ├── FileHelper.cs
+│   └── PathHelper.cs
+├── ViewModels/              # MVVM ViewModels
+│   └── MainWindowViewModel.cs
+├── Views/                   # WPF UI
+│   ├── AddGameInstanceDialog.xaml/.cs
+│   ├── MainWindow.xaml/.cs
+│   └── SettingsWindow.xaml/.cs
+├── App.xaml/.cs             # Application entry point
+├── AppSettings.cs           # Settings model
+└── FSModDownloader.csproj   # Project file
 ```
 
-## Contributing
+---
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+## 🔧 Building
 
-## License
+### Prerequisites
 
-This project is licensed under the MIT License.
+- .NET 8.0 SDK
+- Visual Studio 2022 or VS Code with C# extension
+- Windows 10/11
+
+### Build Commands
+
+```bash
+# Debug build
+dotnet build
+
+# Release build
+dotnet build -c Release
+
+# Run the application
+dotnet run
+
+# Publish self-contained executable
+dotnet publish -c Release -r win-x64 --self-contained true
+```
+
+### Creating a Release
+
+```bash
+# Single-file executable (requires .NET runtime)
+dotnet publish -c Release -r win-x64 -p:PublishSingleFile=true
+
+# Self-contained single-file (no runtime needed, larger file)
+dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
+```
+
+---
+
+## 🏗️ Architecture
+
+### MVVM Pattern
+
+- **Models**: Pure data classes (`Mod`, `GameInstance`, `ModVersion`)
+- **ViewModels**: Handle UI logic and state (`MainWindowViewModel`)
+- **Views**: XAML UI with data bindings (`MainWindow.xaml`)
+
+### Key Services
+
+| Service | Purpose |
+|---------|---------|
+| `ModRepository` | Scrapes mod-network.com for mod listings |
+| `ModManager` | Installs/uninstalls mods to game folders |
+| `ModDownloader` | Downloads mod files with progress tracking |
+| `GamePathDetector` | Auto-detects FS installations (Steam, GIANTS, Documents) |
+| `SettingsService` | Persists settings to `%AppData%\FSModDownloader\settings.json` |
+
+### Game Detection
+
+The `GamePathDetector` scans for installations in:
+1. `Documents\My Games\FarmingSimulatorXXXX`
+2. Steam library folders (via registry + libraryfolders.vdf)
+3. GIANTS Software registry entries
+4. Common paths (Program Files, D:\Games, etc.)
+
+Supports: FS15, FS17, FS19, FS22, FS25
+
+---
+
+## 🌐 Mod Data Source
+
+Mods are scraped from **mod-network.com** using HtmlAgilityPack:
+- Parses JSON-LD structured data when available
+- Falls back to HTML parsing
+- Extracts: name, author, description, image URL, download URL
+
+---
+
+## 📝 Settings Storage
+
+Settings are stored in JSON format at:
+```
+%AppData%\FSModDownloader\settings.json
+```
+
+Includes:
+- Configured game instances
+- Download path
+- UI preferences
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+### Code Style
+
+- Use C# 12 features where appropriate
+- Follow Microsoft naming conventions
+- Add XML documentation comments to public APIs
+- Keep ViewModels thin, put logic in Services
+
+---
+
+## 📋 Planned Features
+
+- [ ] Mod dependency resolution
+- [ ] Version compatibility checking
+- [ ] Mod update notifications
+- [ ] Conflict detection
+- [ ] Mod load order management
+- [ ] Backup/restore mod configurations
+- [ ] Multiple mod sources (ModHub, etc.)
+
+---
+
+## 📄 License
+
+MIT License - See [LICENSE](../LICENSE) for details.
 
 ## Planned Features
 
