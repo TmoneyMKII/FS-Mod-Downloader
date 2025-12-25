@@ -121,4 +121,57 @@ public class ModDownloader : IModDownloader
     {
         DownloadProgressChanged?.Invoke(this, e);
     }
+
+    /// <summary>
+    /// Cleans up a specific temp file after successful installation.
+    /// </summary>
+    public void CleanupTempFile(string filePath)
+    {
+        try
+        {
+            if (File.Exists(filePath))
+            {
+                File.Delete(filePath);
+                _logger.Information("Cleaned up temp file: {FilePath}", filePath);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning(ex, "Failed to cleanup temp file: {FilePath}", filePath);
+        }
+    }
+
+    /// <summary>
+    /// Cleans up all temp files in the download directory.
+    /// </summary>
+    public void CleanupAllTempFiles()
+    {
+        try
+        {
+            if (!Directory.Exists(_downloadDirectory))
+                return;
+
+            var files = Directory.GetFiles(_downloadDirectory);
+            var deletedCount = 0;
+
+            foreach (var file in files)
+            {
+                try
+                {
+                    File.Delete(file);
+                    deletedCount++;
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warning(ex, "Failed to delete temp file: {File}", file);
+                }
+            }
+
+            _logger.Information("Cleaned up {Count} temp files from {Directory}", deletedCount, _downloadDirectory);
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning(ex, "Error cleaning up temp directory: {Directory}", _downloadDirectory);
+        }
+    }
 }

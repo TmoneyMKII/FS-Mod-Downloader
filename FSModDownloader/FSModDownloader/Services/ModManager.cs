@@ -23,6 +23,7 @@ public class ModManager : IModManager
     /// </summary>
     public async Task<bool> InstallModAsync(Mod mod, ModVersion version, string destinationPath)
     {
+        string? downloadPath = null;
         try
         {
             _logger.Information("Installing mod {ModId} version {Version} to {Path}", 
@@ -34,7 +35,7 @@ public class ModManager : IModManager
             }
 
             // Download the mod
-            var downloadPath = await _downloader.DownloadModAsync(version.DownloadUrl, mod.Name);
+            downloadPath = await _downloader.DownloadModAsync(version.DownloadUrl, mod.Name);
             
             if (string.IsNullOrEmpty(downloadPath))
             {
@@ -46,11 +47,22 @@ public class ModManager : IModManager
             // TODO: Implement extraction logic (handles .zip, .rar, etc.)
             
             _logger.Information("Successfully installed mod {ModId}", mod.Id);
+            
+            // Clean up the temp download file after successful install
+            _downloader.CleanupTempFile(downloadPath);
+            
             return true;
         }
         catch (Exception ex)
         {
             _logger.Error(ex, "Error installing mod {ModId}", mod.Id);
+            
+            // Still try to clean up on failure
+            if (!string.IsNullOrEmpty(downloadPath))
+            {
+                _downloader.CleanupTempFile(downloadPath);
+            }
+            
             return false;
         }
     }

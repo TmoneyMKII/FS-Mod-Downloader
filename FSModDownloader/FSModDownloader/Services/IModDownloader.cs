@@ -7,6 +7,17 @@ public interface IModDownloader
 {
     Task<string?> DownloadModAsync(string downloadUrl, string modName);
     Task CancelDownloadAsync();
+    
+    /// <summary>
+    /// Cleans up a downloaded temp file after installation.
+    /// </summary>
+    void CleanupTempFile(string filePath);
+    
+    /// <summary>
+    /// Cleans up all temp files in the download directory.
+    /// </summary>
+    void CleanupAllTempFiles();
+    
     event EventHandler<DownloadProgressEventArgs>? DownloadProgressChanged;
 }
 
