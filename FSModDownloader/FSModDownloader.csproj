@@ -12,6 +12,15 @@
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <EnableDefaultPageItems>false</EnableDefaultPageItems>
     <EnableDefaultApplicationDefinitionItems>false</EnableDefaultApplicationDefinitionItems>
+    
+    <!-- Assembly Info -->
+    <Authors>Tyler Bradham</Authors>
+    <Company>SWR Entertainment</Company>
+    <Product>FS Mod Downloader</Product>
+    <Description>A desktop application for managing and downloading Farming Simulator mods</Description>
+    <Copyright>Copyright © 2025 SWR Entertainment</Copyright>
+    <RepositoryUrl>https://github.com/TmoneyMKII/FS-Mod-Downloader</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,6 +31,7 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+    <PackageReference Include="HtmlAgilityPack" Version="1.11.61" />
     <PackageReference Include="RestSharp" Version="112.1.0" />
     <PackageReference Include="Serilog" Version="3.1.1" />
     <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />

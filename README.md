@@ -55,6 +55,14 @@ FSModDownloader/
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
+## Author
+
+**SWR Entertainment**  
+Created by Tyler Bradham
+
+- GitHub: [@TmoneyMKII](https://github.com/TmoneyMKII)
+- Discord: tmoneymkii
+
 ## License
 
 This project is licensed under the MIT License.
