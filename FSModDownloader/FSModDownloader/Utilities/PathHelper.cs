@@ -1,3 +1,5 @@
+using System.IO;
+
 namespace FSModDownloader.Utilities;
 
 /// <summary>

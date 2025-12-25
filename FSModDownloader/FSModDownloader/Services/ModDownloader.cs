@@ -1,3 +1,6 @@
+using System.IO;
+using System.Net.Http;
+
 namespace FSModDownloader.Services;
 
 using Serilog;

@@ -1,0 +1,296 @@
+<Window x:Class="FSModDownloader.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Settings" Height="600" Width="700"
+        Background="#1A1A1A"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False">
+    
+    <Window.Resources>
+        <!-- Modern Button Style (Green) -->
+        <Style x:Key="ModernButton" TargetType="Button">
+            <Setter Property="Background" Value="#2ECC71"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="16,10"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                CornerRadius="6" 
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#27AE60"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#1E8449"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <!-- Secondary Button Style -->
+        <Style x:Key="SecondaryButton" TargetType="Button">
+            <Setter Property="Background" Value="#333333"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="16,10"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                CornerRadius="6" 
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#444444"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#222222"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <!-- Small Button Style -->
+        <Style x:Key="SmallButton" TargetType="Button">
+            <Setter Property="Background" Value="#333333"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                CornerRadius="4" 
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#444444"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <!-- Modern TextBox Style -->
+        <Style x:Key="ModernTextBox" TargetType="TextBox">
+            <Setter Property="Background" Value="#2D2D2D"/>
+            <Setter Property="Foreground" Value="#E0E0E0"/>
+            <Setter Property="BorderBrush" Value="#3D3D3D"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,10"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="CaretBrush" Value="White"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter Property="BorderBrush" Value="#2ECC71"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <!-- Modern CheckBox Style -->
+        <Style x:Key="ModernCheckBox" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#E0E0E0"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <StackPanel Orientation="Horizontal">
+                            <Border x:Name="checkBorder" Width="22" Height="22" Background="#2D2D2D" 
+                                    BorderBrush="#3D3D3D" BorderThickness="1" CornerRadius="4">
+                                <Path x:Name="checkMark" Data="M 3 7 L 7 11 L 13 3" 
+                                      Stroke="#2ECC71" StrokeThickness="2" 
+                                      Visibility="Collapsed" Margin="2"/>
+                            </Border>
+                            <ContentPresenter Margin="10,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="checkMark" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="checkBorder" Property="BorderBrush" Value="#2ECC71"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="checkBorder" Property="BorderBrush" Value="#2ECC71"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <!-- Header -->
+        <Border Grid.Row="0" Background="#1F1F1F" Padding="24,20">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="⚙" FontSize="24" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                <TextBlock Text="Settings" FontSize="20" FontWeight="Bold" Foreground="#2ECC71" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+        
+        <!-- Content -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" 
+                      CanContentScroll="False" PanningMode="VerticalOnly">
+            <StackPanel Margin="24,20">
+                
+                <!-- Game Paths Section -->
+                <TextBlock Text="GAME PATHS" FontSize="11" FontWeight="Bold" Foreground="#2ECC71" Margin="0,0,0,16"/>
+                <Border Background="#1F1F1F" CornerRadius="8" Padding="20" Margin="0,0,0,24">
+                    <StackPanel>
+                        <!-- FS22 Path -->
+                        <TextBlock Text="Farming Simulator 22 Mods Folder" Foreground="#888888" FontSize="12" Margin="0,0,0,8"/>
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="FS22PathTextBox" Grid.Column="0" Style="{StaticResource ModernTextBox}"
+                                     Text="C:\Users\...\Documents\My Games\FarmingSimulator2022\mods"/>
+                            <Button Grid.Column="1" Content="Browse" Style="{StaticResource SmallButton}" 
+                                    Margin="10,0,0,0" Click="BrowseFS22_Click"/>
+                        </Grid>
+                        
+                        <!-- FS25 Path -->
+                        <TextBlock Text="Farming Simulator 25 Mods Folder" Foreground="#888888" FontSize="12" Margin="0,0,0,8"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="FS25PathTextBox" Grid.Column="0" Style="{StaticResource ModernTextBox}"
+                                     Text="C:\Users\...\Documents\My Games\FarmingSimulator2025\mods"/>
+                            <Button Grid.Column="1" Content="Browse" Style="{StaticResource SmallButton}" 
+                                    Margin="10,0,0,0" Click="BrowseFS25_Click"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+                
+                <!-- Download Settings Section -->
+                <TextBlock Text="DOWNLOADS" FontSize="11" FontWeight="Bold" Foreground="#2ECC71" Margin="0,0,0,16"/>
+                <Border Background="#1F1F1F" CornerRadius="8" Padding="20" Margin="0,0,0,24">
+                    <StackPanel>
+                        <TextBlock Text="Download Location" Foreground="#888888" FontSize="12" Margin="0,0,0,8"/>
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="DownloadPathTextBox" Grid.Column="0" Style="{StaticResource ModernTextBox}"
+                                     Text="C:\Users\...\Downloads\FSMods"/>
+                            <Button Grid.Column="1" Content="Browse" Style="{StaticResource SmallButton}" 
+                                    Margin="10,0,0,0" Click="BrowseDownload_Click"/>
+                        </Grid>
+                        
+                        <CheckBox x:Name="AutoInstallCheckBox" Style="{StaticResource ModernCheckBox}" 
+                                  Content="Automatically install mods after download" IsChecked="True" Margin="0,0,0,12"/>
+                        <CheckBox x:Name="DeleteAfterInstallCheckBox" Style="{StaticResource ModernCheckBox}" 
+                                  Content="Delete downloaded files after installation" IsChecked="True"/>
+                    </StackPanel>
+                </Border>
+                
+                <!-- Updates Section -->
+                <TextBlock Text="UPDATES" FontSize="11" FontWeight="Bold" Foreground="#2ECC71" Margin="0,0,0,16"/>
+                <Border Background="#1F1F1F" CornerRadius="8" Padding="20" Margin="0,0,0,24">
+                    <StackPanel>
+                        <CheckBox x:Name="AutoCheckUpdatesCheckBox" Style="{StaticResource ModernCheckBox}" 
+                                  Content="Automatically check for mod updates on startup" IsChecked="True" Margin="0,0,0,12"/>
+                        <CheckBox x:Name="NotifyUpdatesCheckBox" Style="{StaticResource ModernCheckBox}" 
+                                  Content="Show notifications for available updates" IsChecked="True"/>
+                    </StackPanel>
+                </Border>
+                
+                <!-- Appearance Section -->
+                <TextBlock Text="APPEARANCE" FontSize="11" FontWeight="Bold" Foreground="#2ECC71" Margin="0,0,0,16"/>
+                <Border Background="#1F1F1F" CornerRadius="8" Padding="20" Margin="0,0,0,24">
+                    <StackPanel>
+                        <CheckBox x:Name="StartMinimizedCheckBox" Style="{StaticResource ModernCheckBox}" 
+                                  Content="Start minimized to system tray" Margin="0,0,0,12"/>
+                        <CheckBox x:Name="MinimizeToTrayCheckBox" Style="{StaticResource ModernCheckBox}" 
+                                  Content="Minimize to system tray instead of taskbar" Margin="0,0,0,12"/>
+                        <CheckBox x:Name="ConfirmExitCheckBox" Style="{StaticResource ModernCheckBox}" 
+                                  Content="Confirm before exiting" IsChecked="True"/>
+                    </StackPanel>
+                </Border>
+                
+                <!-- Cache Section -->
+                <TextBlock Text="CACHE" FontSize="11" FontWeight="Bold" Foreground="#2ECC71" Margin="0,0,0,16"/>
+                <Border Background="#1F1F1F" CornerRadius="8" Padding="20">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Cache Size" Foreground="#E0E0E0" FontSize="13"/>
+                            <TextBlock x:Name="CacheSizeText" Text="Calculating..." Foreground="#888888" FontSize="12" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="Clear Cache" Style="{StaticResource SecondaryButton}" 
+                                Click="ClearCache_Click" VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+                
+            </StackPanel>
+        </ScrollViewer>
+        
+        <!-- Footer Buttons -->
+        <Border Grid.Row="2" Background="#1F1F1F" Padding="24,16">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <Button Grid.Column="0" Content="Reset to Defaults" Style="{StaticResource SecondaryButton}" 
+                        Click="ResetDefaults_Click"/>
+                
+                <Button Grid.Column="2" Content="Cancel" Style="{StaticResource SecondaryButton}" 
+                        Margin="0,0,12,0" Click="Cancel_Click"/>
+                <Button Grid.Column="3" Content="Save Settings" Style="{StaticResource ModernButton}" 
+                        Click="Save_Click"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

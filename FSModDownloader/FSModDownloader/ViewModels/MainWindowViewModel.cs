@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using FSModDownloader.Models;
 using FSModDownloader.Services;
 using Serilog;
+using System.Collections.ObjectModel;
 
 namespace FSModDownloader.ViewModels;
 
@@ -48,25 +49,26 @@ public partial class MainWindowViewModel : ObservableObject
         var downloader = new ModDownloader();
         _modManager = new ModManager(downloader);
 
-        InitializeAsync();
+        // Fire and forget with proper error handling
+        _ = InitializeAsync();
     }
 
     /// <summary>
     /// Initializes the application on startup.
     /// </summary>
-    private async void InitializeAsync()
+    private async Task InitializeAsync()
     {
         try
         {
             IsLoading = true;
             StatusMessage = "Detecting game installations...";
 
-            GameInstances = _gamePathDetector.DetectGameInstallations();
+            // Run on background thread to avoid blocking UI
+            GameInstances = await Task.Run(() => _gamePathDetector.DetectGameInstallations());
 
             if (GameInstances.Count > 0)
             {
                 SelectedGameInstance = GameInstances[0];
-                await RefreshInstalledModsAsync();
             }
 
             StatusMessage = $"Found {GameInstances.Count} game installation(s)";
@@ -74,7 +76,7 @@ public partial class MainWindowViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.Error(ex, "Error initializing application");
-            StatusMessage = "Error initializing application";
+            StatusMessage = "Ready - No game installations found";
         }
         finally
         {
