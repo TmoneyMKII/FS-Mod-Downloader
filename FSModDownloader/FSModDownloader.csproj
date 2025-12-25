@@ -21,12 +21,17 @@
     <Copyright>Copyright © 2025 SWR Entertainment</Copyright>
     <RepositoryUrl>https://github.com/TmoneyMKII/FS-Mod-Downloader</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
+    <ApplicationIcon>FSModDownloader\Assets\favicon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Include="FSModDownloader\**\*.cs" />
     <Page Include="FSModDownloader\Views\*.xaml" />
     <ApplicationDefinition Include="FSModDownloader\App.xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="FSModDownloader\Assets\**\*" />
   </ItemGroup>
 
   <ItemGroup>
