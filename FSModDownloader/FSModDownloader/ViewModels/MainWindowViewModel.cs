@@ -44,7 +44,7 @@ public partial class MainWindowViewModel : ObservableObject
     public MainWindowViewModel()
     {
         _gamePathDetector = new GamePathDetector();
-        _modRepository = new ModRepository("https://api.modhub.com");
+        _modRepository = new ModRepository("fs2025"); // Use FS25 by default
         
         var downloader = new ModDownloader();
         _modManager = new ModManager(downloader);
@@ -69,18 +69,40 @@ public partial class MainWindowViewModel : ObservableObject
             if (GameInstances.Count > 0)
             {
                 SelectedGameInstance = GameInstances[0];
+                // Load installed mods for the selected game
+                await RefreshInstalledModsAsync();
             }
 
-            StatusMessage = $"Found {GameInstances.Count} game installation(s)";
+            // Load latest mods from ModHub
+            StatusMessage = "Loading mods from ModHub...";
+            await LoadLatestModsAsync();
+
+            StatusMessage = $"Found {GameInstances.Count} game installation(s), {AvailableMods.Count} mods available";
         }
         catch (Exception ex)
         {
             _logger.Error(ex, "Error initializing application");
-            StatusMessage = "Ready - No game installations found";
+            StatusMessage = "Ready - Error loading mods";
         }
         finally
         {
             IsLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// Loads the latest mods from the repository.
+    /// </summary>
+    private async Task LoadLatestModsAsync()
+    {
+        try
+        {
+            AvailableMods = await _modRepository.SearchModsAsync(string.Empty, null, 1, 50);
+            _logger.Information("Loaded {Count} mods from repository", AvailableMods.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Error loading latest mods");
         }
     }
 

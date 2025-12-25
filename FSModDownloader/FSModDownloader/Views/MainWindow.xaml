@@ -8,6 +8,9 @@
         MinWidth="900" MinHeight="600">
     
     <Window.Resources>
+        <!-- Bool to Visibility Converter -->
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        
         <!-- Green Accent Colors -->
         <!-- Primary: #2ECC71, Hover: #27AE60, Pressed: #1E8449 -->
         
@@ -232,16 +235,10 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Thumb">
-                        <Border CornerRadius="4" Background="#404040" Margin="2"/>
+                        <Border x:Name="ThumbBorder" CornerRadius="4" Background="#404040" Margin="2"/>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="Thumb">
-                                            <Border CornerRadius="4" Background="#2ECC71" Margin="2"/>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
+                                <Setter TargetName="ThumbBorder" Property="Background" Value="#2ECC71"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -453,7 +450,10 @@
                         <!-- Installed Mods Section -->
                         <TextBlock Text="INSTALLED MODS" FontSize="11" FontWeight="Bold" Foreground="#2ECC71" Margin="0,32,0,12"/>
                         <Border Background="#252525" CornerRadius="8" Padding="4" MinHeight="180" MaxHeight="250">
-                            <ListBox x:Name="InstalledModsList" ItemContainerStyle="{StaticResource ModernListBoxItem}"
+                            <ListBox x:Name="InstalledModsList" 
+                                     ItemsSource="{Binding InstalledMods}"
+                                     DisplayMemberPath="Name"
+                                     ItemContainerStyle="{StaticResource ModernListBoxItem}"
                                      BorderThickness="0" Background="Transparent"
                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
                                      ScrollViewer.CanContentScroll="False"/>
@@ -484,9 +484,13 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         
-                        <TextBox x:Name="SearchBox" Grid.Column="0" Style="{StaticResource ModernTextBox}" VerticalAlignment="Center"/>
+                        <TextBox x:Name="SearchBox" Grid.Column="0" Style="{StaticResource ModernTextBox}" 
+                                 Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}"
+                                 VerticalAlignment="Center"/>
                         
-                        <Button Grid.Column="1" Content="🔍 Search" Style="{StaticResource ModernButton}" Margin="16,0,0,0" Height="44"/>
+                        <Button Grid.Column="1" Content="🔍 Search" Style="{StaticResource ModernButton}" 
+                                Command="{Binding SearchModsCommand}"
+                                Margin="16,0,0,0" Height="44"/>
                         
                         <TextBlock Grid.Column="2" Text="Sort:" Foreground="#888888" VerticalAlignment="Center" Margin="24,0,12,0" FontSize="13"/>
                         
@@ -500,93 +504,58 @@
                 </Border>
                 
                 <!-- Mods Grid -->
-                <Border Grid.Row="1" Background="#1F1F1F" CornerRadius="8" Padding="4">
-                    <DataGrid x:Name="ModsDataGrid" AutoGenerateColumns="False" 
-                              Background="Transparent" BorderThickness="0"
-                              RowBackground="#1F1F1F" AlternatingRowBackground="#252525"
-                              GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#333333"
-                              HeadersVisibility="Column" CanUserAddRows="False"
-                              SelectionMode="Single" SelectionUnit="FullRow"
-                              FontSize="13" Foreground="#E0E0E0"
-                              RowHeight="50" ColumnHeaderHeight="45">
-                        <DataGrid.ColumnHeaderStyle>
-                            <Style TargetType="DataGridColumnHeader">
-                                <Setter Property="Background" Value="#1A1A1A"/>
-                                <Setter Property="Foreground" Value="#2ECC71"/>
-                                <Setter Property="FontWeight" Value="Bold"/>
-                                <Setter Property="FontSize" Value="12"/>
-                                <Setter Property="Padding" Value="16,12"/>
-                                <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                                <Setter Property="BorderBrush" Value="#333333"/>
-                            </Style>
-                        </DataGrid.ColumnHeaderStyle>
-                        <DataGrid.CellStyle>
-                            <Style TargetType="DataGridCell">
-                                <Setter Property="Padding" Value="16,0"/>
-                                <Setter Property="BorderThickness" Value="0"/>
-                                <Setter Property="VerticalAlignment" Value="Center"/>
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="DataGridCell">
-                                            <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
-                                                <ContentPresenter VerticalAlignment="Center"/>
+                <Border Grid.Row="1" Background="#1F1F1F" CornerRadius="8" Padding="16">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding AvailableMods}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#252525" CornerRadius="8" Margin="0,0,0,12" Padding="16">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="80"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            
+                                            <!-- Mod Image -->
+                                            <Border Grid.Column="0" Width="64" Height="64" CornerRadius="8" Background="#333333" VerticalAlignment="Center">
+                                                <Image Source="{Binding ImageUrl}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality">
+                                                    <Image.Style>
+                                                        <Style TargetType="Image">
+                                                            <Style.Triggers>
+                                                                <Trigger Property="Source" Value="{x:Null}">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </Trigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Image.Style>
+                                                </Image>
                                             </Border>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                                <Style.Triggers>
-                                    <Trigger Property="IsSelected" Value="True">
-                                        <Setter Property="Background" Value="#2ECC71"/>
-                                        <Setter Property="Foreground" Value="White"/>
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </DataGrid.CellStyle>
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="MOD NAME" Binding="{Binding Name}" Width="*" MinWidth="200"/>
-                            <DataGridTextColumn Header="VERSION" Binding="{Binding Version}" Width="100"/>
-                            <DataGridTextColumn Header="AUTHOR" Binding="{Binding Author}" Width="150"/>
-                            <DataGridTextColumn Header="STATUS" Binding="{Binding IsInstalled}" Width="100"/>
-                            <DataGridTemplateColumn Header="ACTIONS" Width="200">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Button Content="Install" Padding="12,6" Margin="0,0,8,0"
-                                                    Background="#2ECC71" Foreground="White" BorderThickness="0" Cursor="Hand">
-                                                <Button.Template>
-                                                    <ControlTemplate TargetType="Button">
-                                                        <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                                                            <ContentPresenter HorizontalAlignment="Center"/>
-                                                        </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter TargetName="border" Property="Background" Value="#27AE60"/>
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Button.Template>
-                                            </Button>
-                                            <Button Content="Details" Padding="12,6"
-                                                    Background="#333333" Foreground="White" BorderThickness="0" Cursor="Hand">
-                                                <Button.Template>
-                                                    <ControlTemplate TargetType="Button">
-                                                        <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                                                            <ContentPresenter HorizontalAlignment="Center"/>
-                                                        </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter TargetName="border" Property="Background" Value="#444444"/>
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Button.Template>
-                                            </Button>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                        </DataGrid.Columns>
-                    </DataGrid>
+                                            
+                                            <!-- Mod Info -->
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0,0,0">
+                                                <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" Foreground="White" TextTrimming="CharacterEllipsis"/>
+                                                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                                    <TextBlock Text="by " Foreground="#888888" FontSize="13"/>
+                                                    <TextBlock Text="{Binding Author}" Foreground="#2ECC71" FontSize="13"/>
+                                                    <TextBlock Text=" • " Foreground="#555555" FontSize="13" Margin="8,0"/>
+                                                    <TextBlock Text="{Binding Version, TargetNullValue='1.0'}" Foreground="#888888" FontSize="13"/>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding Description}" Foreground="#666666" FontSize="12" 
+                                                           TextTrimming="CharacterEllipsis" MaxWidth="500" Margin="0,6,0,0"/>
+                                            </StackPanel>
+                                            
+                                            <!-- Action Buttons -->
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Button Content="Install" Style="{StaticResource ModernButton}" Margin="0,0,8,0"/>
+                                                <Button Content="Details" Style="{StaticResource SecondaryButton}"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
                 </Border>
             </Grid>
         </Grid>
@@ -599,10 +568,10 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 
-                <TextBlock x:Name="StatusText" Text="Ready" Foreground="White" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <TextBlock x:Name="StatusText" Text="{Binding StatusMessage}" Foreground="White" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
                 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <ProgressBar x:Name="ProgressBar" Width="200" Height="6" Visibility="Hidden" Background="#1E8449" Foreground="White"/>
+                    <ProgressBar x:Name="ProgressBar" Width="200" Height="6" Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}" Background="#1E8449" Foreground="White" IsIndeterminate="True"/>
                 </StackPanel>
             </Grid>
         </Border>
