@@ -25,3 +25,6 @@ publish-single/
 # OS files
 .DS_Store
 Thumbs.db
+
+# AI instructions (local customizations)
+.github/copilot-instructions.md
